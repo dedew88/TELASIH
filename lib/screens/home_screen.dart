@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../database/database_helper.dart';
 import '../models/pasien.dart';
+import '../utils/session_manager.dart';
+import 'login_screen.dart';
 import 'registrasi_screen.dart';
 import 'verifikasi_screen.dart';
 import 'keluhan_screen.dart';
@@ -29,28 +31,76 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _daftarPasien = data);
   }
 
+  void _logout() {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Yakin ingin keluar dari aplikasi?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () {
+              SessionManager.logout();
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const LoginScreen()),
+                (route) => false,
+              );
+            },
+            child: const Text('Logout',
+                style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Ambil nama user yang sedang login
+    final namaUser = SessionManager.currentUser?.nama ?? 'Pengguna';
+    final roleUser = SessionManager.currentUser?.role ?? '';
+
     return Scaffold(
       appBar: AppBar(
-        title: const Column(
+        title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('TELASIH',
-                style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
-                    color: Colors.white)),
-            Text('Telemedicine Layanan Sehat Indonesia',
-                style: TextStyle(fontSize: 11, color: Colors.white70)),
+            const Text(
+              'TELASIH',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+                color: Colors.white,
+              ),
+            ),
+            Text(
+              'Halo, $namaUser! (${roleUser == 'dokter' ? 'Dokter' : 'Pasien'})',
+              style: const TextStyle(
+                fontSize: 11,
+                color: Colors.white70,
+              ),
+            ),
           ],
         ),
         backgroundColor: const Color(0xFF1A73E8),
         actions: [
           IconButton(
-            icon: const Icon(Icons.notifications_outlined,
-                color: Colors.white),
+            icon: const Icon(
+              Icons.notifications_outlined,
+              color: Colors.white,
+            ),
             onPressed: () {},
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.white),
+            tooltip: 'Logout',
+            onPressed: _logout,
           ),
         ],
       ),
@@ -79,25 +129,29 @@ class _HomeScreenState extends State<HomeScreen> {
         onTap: (index) {
           setState(() => _currentIndex = index);
           if (index == 1) {
-            Navigator.push(context,
-                MaterialPageRoute(
-                    builder: (_) => const VerifikasiScreen()))
-                .then((_) => setState(() => _currentIndex = 0));
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => const VerifikasiScreen()),
+            ).then((_) => setState(() => _currentIndex = 0));
           } else if (index == 2) {
-            Navigator.push(context,
-                MaterialPageRoute(
-                    builder: (_) => const KeluhanScreen()))
-                .then((_) => setState(() => _currentIndex = 0));
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => const KeluhanScreen()),
+            ).then((_) => setState(() => _currentIndex = 0));
           } else if (index == 3) {
-            Navigator.push(context,
-                MaterialPageRoute(
-                    builder: (_) => const JadwalScreen()))
-                .then((_) => setState(() => _currentIndex = 0));
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => const JadwalScreen()),
+            ).then((_) => setState(() => _currentIndex = 0));
           } else if (index == 4) {
-            Navigator.push(context,
-                MaterialPageRoute(
-                    builder: (_) => const DokumentasiScreen()))
-                .then((_) => setState(() => _currentIndex = 0));
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => const DokumentasiScreen()),
+            ).then((_) => setState(() => _currentIndex = 0));
           }
         },
         items: const [
@@ -171,13 +225,15 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Text(
                   p.namaLengkap[0].toUpperCase(),
                   style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold),
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
               title: Text(
                 p.namaLengkap,
-                style: const TextStyle(fontWeight: FontWeight.bold),
+                style:
+                    const TextStyle(fontWeight: FontWeight.bold),
               ),
               subtitle: Text(
                 '${p.umur} tahun • ${p.keluhanUtama}',
@@ -191,13 +247,15 @@ class _HomeScreenState extends State<HomeScreen> {
                   Text(
                     'No. RM',
                     style: TextStyle(
-                        fontSize: 10, color: Colors.grey.shade500),
+                        fontSize: 10,
+                        color: Colors.grey.shade500),
                   ),
                   Text(
                     p.noRm,
                     style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ],
               ),
@@ -223,7 +281,8 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           TextButton(
             onPressed: () async {
-              await DatabaseHelper.instance.deletePasien(pasien.id!);
+              await DatabaseHelper.instance
+                  .deletePasien(pasien.id!);
               if (context.mounted) Navigator.pop(context);
               _loadPasien();
             },

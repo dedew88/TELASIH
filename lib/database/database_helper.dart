@@ -1,6 +1,7 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/pasien.dart';
+import '../models/user.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
@@ -17,10 +18,11 @@ class DatabaseHelper {
   Future<Database> _initDB(String filePath) async {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);
-    return await openDatabase(path, version: 1, onCreate: _createDB);
+    return await openDatabase(path, version: 2, onCreate: _createDB);
   }
 
   Future _createDB(Database db, int version) async {
+    // Tabel pasien
     await db.execute('''
       CREATE TABLE pasien (
         id TEXT PRIMARY KEY,
@@ -34,8 +36,21 @@ class DatabaseHelper {
         tanggal_daftar TEXT NOT NULL
       )
     ''');
+
+    // Tabel user (akun login)
+    await db.execute('''
+      CREATE TABLE user (
+        id TEXT PRIMARY KEY,
+        nama TEXT NOT NULL,
+        email TEXT NOT NULL UNIQUE,
+        password TEXT NOT NULL,
+        role TEXT NOT NULL,
+        tanggal_daftar TEXT NOT NULL
+      )
+    ''');
   }
 
+  // ========== PASIEN ==========
   Future<String> insertPasien(Pasien pasien) async {
     final db = await instance.database;
     await db.insert('pasien', pasien.toMap());
@@ -58,6 +73,35 @@ class DatabaseHelper {
   Future<int> deletePasien(String id) async {
     final db = await instance.database;
     return await db.delete('pasien', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // ========== USER ==========
+  Future<String> insertUser(User user) async {
+    final db = await instance.database;
+    await db.insert('user', user.toMap());
+    return user.id!;
+  }
+
+  Future<User?> loginUser(String email, String password) async {
+    final db = await instance.database;
+    final maps = await db.query(
+      'user',
+      where: 'email = ? AND password = ?',
+      whereArgs: [email, password],
+    );
+    if (maps.isNotEmpty) return User.fromMap(maps.first);
+    return null;
+  }
+
+  Future<User?> getUserByEmail(String email) async {
+    final db = await instance.database;
+    final maps = await db.query(
+      'user',
+      where: 'email = ?',
+      whereArgs: [email],
+    );
+    if (maps.isNotEmpty) return User.fromMap(maps.first);
+    return null;
   }
 
   Future close() async {

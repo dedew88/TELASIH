@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'home_screen.dart';
+import 'login_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -33,14 +33,14 @@ class _SplashScreenState extends State<SplashScreen>
 
     _controller.forward();
 
-    // Pindah ke HomeScreen setelah 3 detik
+    // Pindah ke LoginScreen setelah 3 detik
     Future.delayed(const Duration(seconds: 3), () {
       if (mounted) {
         Navigator.pushReplacement(
           context,
           PageRouteBuilder(
             transitionDuration: const Duration(milliseconds: 800),
-            pageBuilder: (_, __, ___) => const HomeScreen(),
+            pageBuilder: (_, __, ___) => const LoginScreen(),
             transitionsBuilder: (_, anim, __, child) {
               return FadeTransition(opacity: anim, child: child);
             },
@@ -60,78 +60,81 @@ class _SplashScreenState extends State<SplashScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF1A73E8),
-      body: Center(
-        child: FadeTransition(
-          opacity: _fadeAnim,
-          child: ScaleTransition(
-            scale: _scaleAnim,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Logo / Icon
-                Container(
-                  width: 120,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(30),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.2),
-                        blurRadius: 20,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
+      body: SafeArea(
+        child: Center(
+          child: FadeTransition(
+            opacity: _fadeAnim,
+            child: ScaleTransition(
+              scale: _scaleAnim,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Logo
+                  Container(
+                    width: 120,
+                    height: 120,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(30),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.2),
+                          blurRadius: 20,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.health_and_safety,
+                      size: 72,
+                      color: Color(0xFF1A73E8),
+                    ),
                   ),
-                  child: const Icon(
-                    Icons.health_and_safety,
-                    size: 72,
-                    color: Color(0xFF1A73E8),
-                  ),
-                ),
-                const SizedBox(height: 28),
+                  const SizedBox(height: 28),
 
-                // Nama aplikasi
-                const Text(
-                  'TELASIH',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 36,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 4,
+                  // Nama aplikasi
+                  const Text(
+                    'TELASIH',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 36,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 4,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
+                  const SizedBox(height: 8),
 
-                // Tagline
-                const Text(
-                  'Telemedicine Layanan Sehat Indonesia',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 13,
-                    letterSpacing: 0.5,
+                  // Tagline
+                  const Text(
+                    'Telemedicine Layanan Sehat Indonesia',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 13,
+                      letterSpacing: 0.5,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 60),
+                  const SizedBox(height: 60),
 
-                // Loading indicator
-                const SizedBox(
-                  width: 32,
-                  height: 32,
-                  child: CircularProgressIndicator(
-                    color: Colors.white,
-                    strokeWidth: 3,
+                  // Loading indicator
+                  const SizedBox(
+                    width: 32,
+                    height: 32,
+                    child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 3,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Memuat aplikasi...',
-                  style: TextStyle(
-                    color: Colors.white60,
-                    fontSize: 13,
+                  const SizedBox(height: 16),
+
+                  const Text(
+                    'Memuat aplikasi...',
+                    style: TextStyle(
+                      color: Colors.white60,
+                      fontSize: 13,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
