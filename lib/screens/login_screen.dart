@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../database/database_helper.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/session_manager.dart';
 import 'home_screen.dart';
 import 'register_screen.dart';
@@ -30,45 +31,72 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
 
-    final user = await DatabaseHelper.instance.loginUser(
-      _emailCtrl.text.trim(),
-      _passwordCtrl.text.trim(),
-    );
-
-    setState(() => _loading = false);
-
-    if (user == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Email atau password salah!'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-      return;
-    }
-
-    if (user.role != _selectedRole) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-                'Akun ini terdaftar sebagai ${user.role}, bukan $_selectedRole'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-      }
-      return;
-    }
-
-    SessionManager.setUser(user);
-
-    if (mounted) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const HomeScreen()),
+    try {
+      // Login pakai Firebase Auth
+      final credential = await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: _emailCtrl.text.trim(),
+        password: _passwordCtrl.text.trim(),
       );
+
+      // Ambil data user dari Firestore
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(credential.user!.uid)
+          .get();
+
+      setState(() => _loading = false);
+
+      if (!doc.exists) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Data user tidak ditemukan!'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      final userData = doc.data()!;
+      final userRole = userData['role'] ?? 'pasien';
+
+      // Cek role sesuai pilihan
+      if (userRole != _selectedRole) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                  'Akun ini terdaftar sebagai $userRole, bukan $_selectedRole'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        await FirebaseAuth.instance.signOut();
+        return;
+      }
+
+      // Simpan session
+      SessionManager.setFirebaseUser(credential.user!, userData);
+
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const HomeScreen()),
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      setState(() => _loading = false);
+      String message = 'Login gagal';
+      if (e.code == 'user-not-found') message = 'Email tidak terdaftar';
+      if (e.code == 'wrong-password') message = 'Password salah';
+      if (e.code == 'invalid-credential') message = 'Email atau password salah';
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
@@ -79,10 +107,8 @@ class _LoginScreenState extends State<LoginScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Header
             const SizedBox(height: 40),
-            const Icon(Icons.health_and_safety,
-                size: 64, color: Colors.white),
+            const Icon(Icons.health_and_safety, size: 64, color: Colors.white),
             const SizedBox(height: 12),
             const Text('TELASIH',
                 style: TextStyle(
@@ -93,14 +119,11 @@ class _LoginScreenState extends State<LoginScreen> {
             const Text('Telemedicine Layanan Sehat Indonesia',
                 style: TextStyle(color: Colors.white70, fontSize: 12)),
             const SizedBox(height: 32),
-
-            // Form card
             Expanded(
               child: Container(
                 decoration: const BoxDecoration(
                   color: Colors.white,
-                  borderRadius:
-                      BorderRadius.vertical(top: Radius.circular(28)),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
                 ),
                 padding: const EdgeInsets.all(24),
                 child: SingleChildScrollView(
@@ -111,31 +134,23 @@ class _LoginScreenState extends State<LoginScreen> {
                       children: [
                         const Text('Masuk',
                             style: TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold)),
+                                fontSize: 22, fontWeight: FontWeight.bold)),
                         const Text('Silakan login ke akun Anda',
-                            style: TextStyle(
-                                color: Colors.grey, fontSize: 13)),
+                            style: TextStyle(color: Colors.grey, fontSize: 13)),
                         const SizedBox(height: 24),
-
-                        // Pilih role
                         const Text('Login sebagai:',
                             style: TextStyle(
-                                fontWeight: FontWeight.w500,
-                                fontSize: 13)),
+                                fontWeight: FontWeight.w500, fontSize: 13)),
                         const SizedBox(height: 8),
                         Row(
                           children: [
-                            _buildRoleButton('pasien', Icons.person,
-                                'Pasien'),
+                            _buildRoleButton('pasien', Icons.person, 'Pasien'),
                             const SizedBox(width: 12),
-                            _buildRoleButton('dokter',
-                                Icons.medical_services, 'Dokter'),
+                            _buildRoleButton(
+                                'dokter', Icons.medical_services, 'Dokter'),
                           ],
                         ),
                         const SizedBox(height: 20),
-
-                        // Email
                         TextFormField(
                           controller: _emailCtrl,
                           keyboardType: TextInputType.emailAddress,
@@ -148,27 +163,23 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           validator: (v) {
                             if (v!.isEmpty) return 'Email wajib diisi';
-                            if (!v.contains('@'))
-                              return 'Format email tidak valid';
+                            if (!v.contains('@')) return 'Format email tidak valid';
                             return null;
                           },
                         ),
                         const SizedBox(height: 16),
-
-                        // Password
                         TextFormField(
                           controller: _passwordCtrl,
                           obscureText: _obscurePassword,
                           decoration: InputDecoration(
                             labelText: 'Password',
-                            prefixIcon:
-                                const Icon(Icons.lock_outline),
+                            prefixIcon: const Icon(Icons.lock_outline),
                             suffixIcon: IconButton(
                               icon: Icon(_obscurePassword
                                   ? Icons.visibility_outlined
                                   : Icons.visibility_off_outlined),
-                              onPressed: () => setState(() =>
-                                  _obscurePassword = !_obscurePassword),
+                              onPressed: () => setState(
+                                  () => _obscurePassword = !_obscurePassword),
                             ),
                             border: const OutlineInputBorder(),
                             filled: true,
@@ -176,42 +187,33 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           validator: (v) {
                             if (v!.isEmpty) return 'Password wajib diisi';
-                            if (v.length < 6)
-                              return 'Password minimal 6 karakter';
+                            if (v.length < 6) return 'Password minimal 6 karakter';
                             return null;
                           },
                         ),
                         const SizedBox(height: 24),
-
-                        // Tombol login
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
                             onPressed: _loading ? null : _login,
                             style: ElevatedButton.styleFrom(
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 14),
-                              backgroundColor:
-                                  const Color(0xFF1A73E8),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              backgroundColor: const Color(0xFF1A73E8),
                               foregroundColor: Colors.white,
                               shape: RoundedRectangleBorder(
-                                  borderRadius:
-                                      BorderRadius.circular(8)),
+                                  borderRadius: BorderRadius.circular(8)),
                             ),
                             child: _loading
                                 ? const SizedBox(
                                     height: 20,
                                     width: 20,
                                     child: CircularProgressIndicator(
-                                        color: Colors.white,
-                                        strokeWidth: 2))
+                                        color: Colors.white, strokeWidth: 2))
                                 : const Text('Masuk',
                                     style: TextStyle(fontSize: 16)),
                           ),
                         ),
                         const SizedBox(height: 16),
-
-                        // Link ke register
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
@@ -221,8 +223,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               onTap: () => Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                    builder: (_) =>
-                                        const RegisterScreen()),
+                                    builder: (_) => const RegisterScreen()),
                               ),
                               child: const Text('Daftar Sekarang',
                                   style: TextStyle(
@@ -243,8 +244,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Widget _buildRoleButton(
-      String role, IconData icon, String label) {
+  Widget _buildRoleButton(String role, IconData icon, String label) {
     final isSelected = _selectedRole == role;
     return Expanded(
       child: GestureDetector(
@@ -252,9 +252,7 @@ class _LoginScreenState extends State<LoginScreen> {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            color: isSelected
-                ? const Color(0xFF1A73E8)
-                : Colors.grey.shade100,
+            color: isSelected ? const Color(0xFF1A73E8) : Colors.grey.shade100,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color: isSelected
@@ -266,13 +264,11 @@ class _LoginScreenState extends State<LoginScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(icon,
-                  size: 18,
-                  color: isSelected ? Colors.white : Colors.grey),
+                  size: 18, color: isSelected ? Colors.white : Colors.grey),
               const SizedBox(width: 6),
               Text(label,
                   style: TextStyle(
-                      color:
-                          isSelected ? Colors.white : Colors.grey,
+                      color: isSelected ? Colors.white : Colors.grey,
                       fontWeight: FontWeight.w500)),
             ],
           ),

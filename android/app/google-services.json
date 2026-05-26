@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "582587443674",
+    "project_id": "telasih",
+    "storage_bucket": "telasih.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:582587443674:android:7171b7be3783a9e9cf38e3",
+        "android_client_info": {
+          "package_name": "com.example.telasih_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAUUpq_mrfSWAPlrHKF06udIAg1HVlAg78"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

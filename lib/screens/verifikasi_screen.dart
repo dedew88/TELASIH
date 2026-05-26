@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import '../models/pasien.dart';
-import '../database/database_helper.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class VerifikasiScreen extends StatefulWidget {
   const VerifikasiScreen({super.key});
@@ -11,18 +10,31 @@ class VerifikasiScreen extends StatefulWidget {
 
 class _VerifikasiScreenState extends State<VerifikasiScreen> {
   final _searchCtrl = TextEditingController();
-  List<Pasien> _hasil = [];
+  List<Map<String, dynamic>> _hasil = [];
   bool _sudahCari = false;
+  bool _loading = false;
 
   Future<void> _cari() async {
-    final semua = await DatabaseHelper.instance.getAllPasien();
     final keyword = _searchCtrl.text.trim().toLowerCase();
+    if (keyword.isEmpty) return;
+
     setState(() {
+      _loading = true;
       _sudahCari = true;
+    });
+
+    final snapshot = await FirebaseFirestore.instance
+        .collection('pasien')
+        .get();
+
+    final semua = snapshot.docs.map((d) => d.data()).toList();
+
+    setState(() {
+      _loading = false;
       _hasil = semua.where((p) =>
-        p.namaLengkap.toLowerCase().contains(keyword) ||
-        p.noRm.toLowerCase().contains(keyword) ||
-        p.noHp.contains(keyword)
+        (p['namaLengkap'] ?? '').toLowerCase().contains(keyword) ||
+        (p['noRm'] ?? '').toLowerCase().contains(keyword) ||
+        (p['noHp'] ?? '').contains(keyword)
       ).toList();
     });
   }
@@ -41,7 +53,6 @@ class _VerifikasiScreenState extends State<VerifikasiScreen> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // Info banner
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -63,8 +74,6 @@ class _VerifikasiScreenState extends State<VerifikasiScreen> {
               ),
             ),
             const SizedBox(height: 16),
-
-            // Search bar
             Row(
               children: [
                 Expanded(
@@ -93,94 +102,107 @@ class _VerifikasiScreenState extends State<VerifikasiScreen> {
               ],
             ),
             const SizedBox(height: 16),
-
-            // Hasil pencarian
             Expanded(
-              child: _sudahCari
-                ? _hasil.isEmpty
-                  ? const Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.person_search,
-                              size: 60, color: Colors.grey),
-                          SizedBox(height: 12),
-                          Text('Pasien tidak ditemukan',
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _sudahCari
+                      ? _hasil.isEmpty
+                          ? const Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.person_search,
+                                      size: 60, color: Colors.grey),
+                                  SizedBox(height: 12),
+                                  Text('Pasien tidak ditemukan',
+                                      style: TextStyle(color: Colors.grey)),
+                                ],
+                              ),
+                            )
+                          : ListView.builder(
+                              itemCount: _hasil.length,
+                              itemBuilder: (ctx, i) {
+                                final p = _hasil[i];
+                                return Card(
+                                  margin: const EdgeInsets.only(bottom: 8),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(12),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            CircleAvatar(
+                                              backgroundColor:
+                                                  const Color(0xFF1A73E8),
+                                              child: Text(
+                                                (p['namaLengkap'] ?? '?')[0]
+                                                    .toUpperCase(),
+                                                style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontWeight:
+                                                        FontWeight.bold),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                      p['namaLengkap'] ?? '-',
+                                                      style: const TextStyle(
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                          fontSize: 15)),
+                                                  Text(
+                                                      'No. RM: ${p['noRm'] ?? '-'}',
+                                                      style: const TextStyle(
+                                                          color: Colors.grey,
+                                                          fontSize: 12)),
+                                                ],
+                                              ),
+                                            ),
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                      horizontal: 8,
+                                                      vertical: 4),
+                                              decoration: BoxDecoration(
+                                                color: Colors.green.shade100,
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                              ),
+                                              child: Text('Terverifikasi',
+                                                  style: TextStyle(
+                                                      color: Colors
+                                                          .green.shade800,
+                                                      fontSize: 11)),
+                                            ),
+                                          ],
+                                        ),
+                                        const Divider(height: 20),
+                                        _buildInfoRow(Icons.cake,
+                                            '${p['umur'] ?? '-'} tahun • ${p['jenisKelamin'] ?? '-'}'),
+                                        _buildInfoRow(
+                                            Icons.phone, p['noHp'] ?? '-'),
+                                        _buildInfoRow(
+                                            Icons.home, p['alamat'] ?? '-'),
+                                        _buildInfoRow(
+                                            Icons.sick, p['keluhanUtama'] ?? '-'),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                            )
+                      : const Center(
+                          child: Text(
+                              'Masukkan kata kunci untuk mencari pasien',
                               style: TextStyle(color: Colors.grey)),
-                        ],
-                      ),
-                    )
-                  : ListView.builder(
-                      itemCount: _hasil.length,
-                      itemBuilder: (ctx, i) {
-                        final p = _hasil[i];
-                        return Card(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    CircleAvatar(
-                                      backgroundColor:
-                                          const Color(0xFF1A73E8),
-                                      child: Text(p.namaLengkap[0],
-                                          style: const TextStyle(
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.bold)),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(p.namaLengkap,
-                                              style: const TextStyle(
-                                                  fontWeight:
-                                                      FontWeight.bold,
-                                                  fontSize: 15)),
-                                          Text('No. RM: ${p.noRm}',
-                                              style: const TextStyle(
-                                                  color: Colors.grey,
-                                                  fontSize: 12)),
-                                        ],
-                                      ),
-                                    ),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 8, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: Colors.green.shade100,
-                                        borderRadius:
-                                            BorderRadius.circular(12),
-                                      ),
-                                      child: Text('Terverifikasi',
-                                          style: TextStyle(
-                                              color: Colors.green.shade800,
-                                              fontSize: 11)),
-                                    ),
-                                  ],
-                                ),
-                                const Divider(height: 20),
-                                _buildInfoRow(Icons.cake,
-                                    '${p.umur} tahun • ${p.jenisKelamin}'),
-                                _buildInfoRow(Icons.phone, p.noHp),
-                                _buildInfoRow(Icons.home, p.alamat),
-                                _buildInfoRow(
-                                    Icons.sick, p.keluhanUtama),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    )
-                : const Center(
-                    child: Text('Masukkan kata kunci untuk mencari pasien',
-                        style: TextStyle(color: Colors.grey)),
-                  ),
+                        ),
             ),
           ],
         ),
@@ -195,9 +217,7 @@ class _VerifikasiScreenState extends State<VerifikasiScreen> {
         children: [
           Icon(icon, size: 14, color: Colors.grey),
           const SizedBox(width: 6),
-          Expanded(
-            child: Text(text, style: const TextStyle(fontSize: 13)),
-          ),
+          Expanded(child: Text(text, style: const TextStyle(fontSize: 13))),
         ],
       ),
     );

@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:uuid/uuid.dart';
-import 'package:intl/intl.dart';
-import '../database/database_helper.dart';
-import '../models/user.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -35,44 +33,51 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
 
-    // Cek email sudah terdaftar
-    final existing = await DatabaseHelper.instance
-        .getUserByEmail(_emailCtrl.text.trim());
+    try {
+      // Buat akun di Firebase Auth
+      final credential = await FirebaseAuth.instance
+          .createUserWithEmailAndPassword(
+        email: _emailCtrl.text.trim(),
+        password: _passwordCtrl.text.trim(),
+      );
 
-    if (existing != null) {
+      // Simpan data user ke Firestore
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(credential.user!.uid)
+          .set({
+        'nama': _namaCtrl.text.trim(),
+        'email': _emailCtrl.text.trim(),
+        'role': _selectedRole,
+        'tanggalDaftar': DateTime.now().toIso8601String(),
+      });
+
       setState(() => _loading = false);
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Email sudah terdaftar, gunakan email lain!'),
-            backgroundColor: Colors.red,
+            content: Text('✅ Akun berhasil dibuat! Silakan login.'),
+            backgroundColor: Colors.green,
           ),
         );
+        Navigator.pop(context);
       }
-      return;
-    }
+    } on FirebaseAuthException catch (e) {
+      setState(() => _loading = false);
+      String message = 'Registrasi gagal';
+      if (e.code == 'email-already-in-use') {
+        message = 'Email sudah terdaftar, gunakan email lain!';
+      }
+      if (e.code == 'weak-password') {
+        message = 'Password terlalu lemah';
+      }
 
-    final user = User(
-      id: const Uuid().v4(),
-      nama: _namaCtrl.text.trim(),
-      email: _emailCtrl.text.trim(),
-      password: _passwordCtrl.text.trim(),
-      role: _selectedRole,
-      tanggalDaftar:
-          DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now()),
-    );
-
-    await DatabaseHelper.instance.insertUser(user);
-    setState(() => _loading = false);
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('✅ Akun berhasil dibuat! Silakan login.'),
-          backgroundColor: Colors.green,
-        ),
-      );
-      Navigator.pop(context);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
@@ -83,15 +88,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Header
             Padding(
               padding: const EdgeInsets.all(20),
               child: Row(
                 children: [
                   IconButton(
                     onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.arrow_back,
-                        color: Colors.white),
+                    icon: const Icon(Icons.arrow_back, color: Colors.white),
                   ),
                   const Text('Daftar Akun Baru',
                       style: TextStyle(
@@ -101,8 +104,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ],
               ),
             ),
-
-            // Form card
             Expanded(
               child: Container(
                 decoration: const BoxDecoration(
@@ -119,98 +120,72 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       children: [
                         const Text('Buat Akun',
                             style: TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold)),
+                                fontSize: 22, fontWeight: FontWeight.bold)),
                         const Text('Isi data diri Anda dengan benar',
-                            style: TextStyle(
-                                color: Colors.grey, fontSize: 13)),
+                            style:
+                                TextStyle(color: Colors.grey, fontSize: 13)),
                         const SizedBox(height: 24),
-
-                        // Pilih role
                         const Text('Daftar sebagai:',
                             style: TextStyle(
-                                fontWeight: FontWeight.w500,
-                                fontSize: 13)),
+                                fontWeight: FontWeight.w500, fontSize: 13)),
                         const SizedBox(height: 8),
                         Row(
                           children: [
-                            _buildRoleButton('pasien', Icons.person,
-                                'Pasien'),
+                            _buildRoleButton('pasien', Icons.person, 'Pasien'),
                             const SizedBox(width: 12),
-                            _buildRoleButton('dokter',
-                                Icons.medical_services, 'Dokter'),
+                            _buildRoleButton(
+                                'dokter', Icons.medical_services, 'Dokter'),
                           ],
                         ),
                         const SizedBox(height: 20),
-
-                        // Nama
                         _buildTextField(_namaCtrl, 'Nama Lengkap',
                             Icons.badge_outlined,
                             validator: (v) =>
                                 v!.isEmpty ? 'Nama wajib diisi' : null),
-
-                        // Email
                         _buildTextField(
                             _emailCtrl, 'Email', Icons.email_outlined,
                             keyboardType: TextInputType.emailAddress,
                             validator: (v) {
                           if (v!.isEmpty) return 'Email wajib diisi';
-                          if (!v.contains('@'))
-                            return 'Format email tidak valid';
+                          if (!v.contains('@')) return 'Format email tidak valid';
                           return null;
                         }),
-
-                        // Password
                         _buildPasswordField(
-                            _passwordCtrl, 'Password',
-                            _obscurePassword, () {
-                          setState(() =>
-                              _obscurePassword = !_obscurePassword);
+                            _passwordCtrl, 'Password', _obscurePassword, () {
+                          setState(() => _obscurePassword = !_obscurePassword);
                         }, validator: (v) {
                           if (v!.isEmpty) return 'Password wajib diisi';
-                          if (v.length < 6)
-                            return 'Password minimal 6 karakter';
+                          if (v.length < 6) return 'Password minimal 6 karakter';
                           return null;
                         }),
-
-                        // Konfirmasi password
-                        _buildPasswordField(
-                            _konfirmasiCtrl, 'Konfirmasi Password',
-                            _obscureKonfirmasi, () {
-                          setState(() => _obscureKonfirmasi =
-                              !_obscureKonfirmasi);
+                        _buildPasswordField(_konfirmasiCtrl,
+                            'Konfirmasi Password', _obscureKonfirmasi, () {
+                          setState(
+                              () => _obscureKonfirmasi = !_obscureKonfirmasi);
                         }, validator: (v) {
-                          if (v!.isEmpty)
-                            return 'Konfirmasi password wajib diisi';
-                          if (v != _passwordCtrl.text)
-                            return 'Password tidak cocok';
+                          if (v!.isEmpty) return 'Konfirmasi password wajib diisi';
+                          if (v != _passwordCtrl.text) return 'Password tidak cocok';
                           return null;
                         }),
-
                         const SizedBox(height: 24),
-
-                        // Tombol daftar
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
                             onPressed: _loading ? null : _register,
                             style: ElevatedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(
-                                  vertical: 14),
-                              backgroundColor:
-                                  const Color(0xFF1A73E8),
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 14),
+                              backgroundColor: const Color(0xFF1A73E8),
                               foregroundColor: Colors.white,
                               shape: RoundedRectangleBorder(
-                                  borderRadius:
-                                      BorderRadius.circular(8)),
+                                  borderRadius: BorderRadius.circular(8)),
                             ),
                             child: _loading
                                 ? const SizedBox(
                                     height: 20,
                                     width: 20,
                                     child: CircularProgressIndicator(
-                                        color: Colors.white,
-                                        strokeWidth: 2))
+                                        color: Colors.white, strokeWidth: 2))
                                 : const Text('Buat Akun',
                                     style: TextStyle(fontSize: 16)),
                           ),
@@ -229,8 +204,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Widget _buildTextField(
       TextEditingController ctrl, String label, IconData icon,
-      {TextInputType? keyboardType,
-      String? Function(String?)? validator}) {
+      {TextInputType? keyboardType, String? Function(String?)? validator}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: TextFormField(
@@ -248,11 +222,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  Widget _buildPasswordField(
-      TextEditingController ctrl,
-      String label,
-      bool obscure,
-      VoidCallback onToggle,
+  Widget _buildPasswordField(TextEditingController ctrl, String label,
+      bool obscure, VoidCallback onToggle,
       {String? Function(String?)? validator}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
@@ -277,8 +248,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  Widget _buildRoleButton(
-      String role, IconData icon, String label) {
+  Widget _buildRoleButton(String role, IconData icon, String label) {
     final isSelected = _selectedRole == role;
     return Expanded(
       child: GestureDetector(
@@ -286,22 +256,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            color: isSelected
-                ? const Color(0xFF1A73E8)
-                : Colors.grey.shade100,
+            color: isSelected ? const Color(0xFF1A73E8) : Colors.grey.shade100,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
-              color: isSelected
-                  ? const Color(0xFF1A73E8)
-                  : Colors.grey.shade300,
+              color: isSelected ? const Color(0xFF1A73E8) : Colors.grey.shade300,
             ),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(icon,
-                  size: 18,
-                  color: isSelected ? Colors.white : Colors.grey),
+                  size: 18, color: isSelected ? Colors.white : Colors.grey),
               const SizedBox(width: 6),
               Text(label,
                   style: TextStyle(

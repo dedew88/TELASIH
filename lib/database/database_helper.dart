@@ -2,6 +2,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/pasien.dart';
 import '../models/user.dart';
+import '../models/jadwal.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
@@ -18,7 +19,11 @@ class DatabaseHelper {
   Future<Database> _initDB(String filePath) async {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);
-    return await openDatabase(path, version: 2, onCreate: _createDB);
+    return await openDatabase(
+      path,
+      version: 3,
+      onCreate: _createDB,
+    );
   }
 
   Future _createDB(Database db, int version) async {
@@ -48,6 +53,19 @@ class DatabaseHelper {
         tanggal_daftar TEXT NOT NULL
       )
     ''');
+
+    // Tabel jadwal konsultasi
+    await db.execute('''
+      CREATE TABLE jadwal (
+        id TEXT PRIMARY KEY,
+        pasien_id TEXT NOT NULL,
+        pasien_nama TEXT NOT NULL,
+        dokter_nama TEXT NOT NULL,
+        tanggal TEXT NOT NULL,
+        waktu TEXT NOT NULL,
+        status TEXT NOT NULL
+      )
+    ''');
   }
 
   // ========== PASIEN ==========
@@ -59,20 +77,23 @@ class DatabaseHelper {
 
   Future<List<Pasien>> getAllPasien() async {
     final db = await instance.database;
-    final result = await db.query('pasien', orderBy: 'tanggal_daftar DESC');
+    final result =
+        await db.query('pasien', orderBy: 'tanggal_daftar DESC');
     return result.map((map) => Pasien.fromMap(map)).toList();
   }
 
   Future<Pasien?> getPasienById(String id) async {
     final db = await instance.database;
-    final maps = await db.query('pasien', where: 'id = ?', whereArgs: [id]);
+    final maps =
+        await db.query('pasien', where: 'id = ?', whereArgs: [id]);
     if (maps.isNotEmpty) return Pasien.fromMap(maps.first);
     return null;
   }
 
   Future<int> deletePasien(String id) async {
     final db = await instance.database;
-    return await db.delete('pasien', where: 'id = ?', whereArgs: [id]);
+    return await db
+        .delete('pasien', where: 'id = ?', whereArgs: [id]);
   }
 
   // ========== USER ==========
@@ -102,6 +123,58 @@ class DatabaseHelper {
     );
     if (maps.isNotEmpty) return User.fromMap(maps.first);
     return null;
+  }
+
+  Future<List<User>> getAllDokter() async {
+    final db = await instance.database;
+    final result = await db.query(
+      'user',
+      where: 'role = ?',
+      whereArgs: ['dokter'],
+      orderBy: 'nama ASC',
+    );
+    return result.map((map) => User.fromMap(map)).toList();
+  }
+
+  // ========== JADWAL ==========
+  Future<String> insertJadwal(Jadwal jadwal) async {
+    final db = await instance.database;
+    await db.insert('jadwal', jadwal.toMap());
+    return jadwal.id!;
+  }
+
+  // Ambil jadwal milik pasien tertentu
+  Future<List<Jadwal>> getJadwalByPasien(String pasienId) async {
+    final db = await instance.database;
+    final result = await db.query(
+      'jadwal',
+      where: 'pasien_id = ?',
+      whereArgs: [pasienId],
+      orderBy: 'tanggal ASC',
+    );
+    return result.map((map) => Jadwal.fromMap(map)).toList();
+  }
+
+  // Ambil jadwal untuk dokter tertentu
+  Future<List<Jadwal>> getJadwalByDokter(String dokterNama) async {
+    final db = await instance.database;
+    final result = await db.query(
+      'jadwal',
+      where: 'dokter_nama = ?',
+      whereArgs: [dokterNama],
+      orderBy: 'tanggal ASC',
+    );
+    return result.map((map) => Jadwal.fromMap(map)).toList();
+  }
+
+  Future<int> updateStatusJadwal(String id, String status) async {
+    final db = await instance.database;
+    return await db.update(
+      'jadwal',
+      {'status': status},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
   }
 
   Future close() async {
